@@ -10,13 +10,15 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
+      
       AWS_REGION: ${{ secrets.AWS_REGION }}
       EKS_CLUSTER_NAME: ${{ secrets.EKS_CLUSTER_NAME }}
 
-      BACKEND_REPO: ${{ secrets.BACKEND_REPO }}
-      FRONTEND_REPO: ${{ secrets.FRONTEND_REPO }}
+      BACKEND_IMAGE: ${{ secrets.BACKEND_IMAGE }}
+      FRONTEND_IMAGE: ${{ secrets.FRONTEND_IMAGE }}
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
 
-      IMAGE_TAG: ${{ github.sha }}
+      
 
     steps:
 
