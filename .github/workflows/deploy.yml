@@ -6,17 +6,17 @@ on:
       - main
 
 jobs:
-
   deploy:
-
     runs-on: ubuntu-latest
 
     env:
       AWS_REGION: ${{ secrets.AWS_REGION }}
-      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-      BACKEND_IMAGE: ${{ secrets.BACKEND_IMAGE }}
-      FRONTEND_IMAGE: ${{ secrets.FRONTEND_IMAGE }}
       EKS_CLUSTER_NAME: ${{ secrets.EKS_CLUSTER_NAME }}
+
+      BACKEND_REPO: ${{ secrets.BACKEND_REPO }}
+      FRONTEND_REPO: ${{ secrets.FRONTEND_REPO }}
+
+      IMAGE_TAG: ${{ github.sha }}
 
     steps:
 
@@ -33,7 +33,6 @@ jobs:
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
-
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -44,18 +43,15 @@ jobs:
       # ----------------------------------------------------
 
       - name: Login to Amazon ECR
-        id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
       # ----------------------------------------------------
-      # Build Backend Docker Image
+      # Build Backend Image
       # ----------------------------------------------------
 
       - name: Build Backend Image
         run: |
-          docker build \
-          -t maintenance-backend \
-          ./backend
+          docker build -t maintenance-backend ./backend
 
       # ----------------------------------------------------
       # Tag Backend Image
@@ -63,7 +59,7 @@ jobs:
 
       - name: Tag Backend Image
         run: |
-          docker tag maintenance-backend:latest $BACKEND_IMAGE
+          docker tag maintenance-backend:latest $BACKEND_REPO:$IMAGE_TAG
 
       # ----------------------------------------------------
       # Push Backend Image
@@ -71,17 +67,15 @@ jobs:
 
       - name: Push Backend Image
         run: |
-          docker push $BACKEND_IMAGE
+          docker push $BACKEND_REPO:$IMAGE_TAG
 
       # ----------------------------------------------------
-      # Build Frontend Docker Image
+      # Build Frontend Image
       # ----------------------------------------------------
 
       - name: Build Frontend Image
         run: |
-          docker build \
-          -t maintenance-frontend \
-          ./frontend
+          docker build -t maintenance-frontend ./frontend
 
       # ----------------------------------------------------
       # Tag Frontend Image
@@ -89,7 +83,7 @@ jobs:
 
       - name: Tag Frontend Image
         run: |
-          docker tag maintenance-frontend:latest $FRONTEND_IMAGE
+          docker tag maintenance-frontend:latest $FRONTEND_REPO:$IMAGE_TAG
 
       # ----------------------------------------------------
       # Push Frontend Image
@@ -97,7 +91,7 @@ jobs:
 
       - name: Push Frontend Image
         run: |
-          docker push $FRONTEND_IMAGE
+          docker push $FRONTEND_REPO:$IMAGE_TAG
 
       # ----------------------------------------------------
       # Configure kubectl
@@ -106,27 +100,27 @@ jobs:
       - name: Configure kubectl
         run: |
           aws eks update-kubeconfig \
-          --region $AWS_REGION \
-          --name $EKS_CLUSTER_NAME
+            --region $AWS_REGION \
+            --name $EKS_CLUSTER_NAME
 
       # ----------------------------------------------------
-      # Replace Backend Image
+      # Update Backend Manifest
       # ----------------------------------------------------
 
       - name: Update Backend Manifest
         run: |
-          sed -i "s|\${BACKEND_IMAGE}|$BACKEND_IMAGE|g" kubernetes/backend-deployment.yaml
+          sed -i "s|\${BACKEND_IMAGE}|$BACKEND_REPO:$IMAGE_TAG|g" kubernetes/backend-deployment.yaml
 
       # ----------------------------------------------------
-      # Replace Frontend Image
+      # Update Frontend Manifest
       # ----------------------------------------------------
 
       - name: Update Frontend Manifest
         run: |
-          sed -i "s|\${FRONTEND_IMAGE}|$FRONTEND_IMAGE|g" kubernetes/frontend-deployment.yaml
+          sed -i "s|\${FRONTEND_IMAGE}|$FRONTEND_REPO:$IMAGE_TAG|g" kubernetes/frontend-deployment.yaml
 
       # ----------------------------------------------------
-      # Create / Update Kubernetes Secret
+      # Create / Update AWS Secret
       # ----------------------------------------------------
 
       - name: Create AWS Credentials Secret
@@ -136,17 +130,26 @@ jobs:
             --from-literal=AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }} \
             --from-literal=AWS_REGION=${{ secrets.AWS_REGION }} \
             --dry-run=client -o yaml | kubectl apply -f -
-            
+
       # ----------------------------------------------------
-      # Deploy Kubernetes Resources
+      # Deploy to Amazon EKS
       # ----------------------------------------------------
 
-      - name: Deploy to Amazon EKS
+      - name: Deploy
         run: |
           kubectl apply -f kubernetes/
 
       # ----------------------------------------------------
-      # Verify Deployment
+      # Restart Deployments (Recommended)
+      # ----------------------------------------------------
+
+      - name: Restart Deployments
+        run: |
+          kubectl rollout restart deployment maintenance-backend
+          kubectl rollout restart deployment maintenance-frontend
+
+      # ----------------------------------------------------
+      # Wait for Rollout
       # ----------------------------------------------------
 
       - name: Wait for Backend
@@ -158,11 +161,12 @@ jobs:
           kubectl rollout status deployment/maintenance-frontend
 
       # ----------------------------------------------------
-      # Verify Pods
+      # Verify
       # ----------------------------------------------------
 
-      - name: List Resources
+      - name: Verify
         run: |
           kubectl get deployments
           kubectl get pods
           kubectl get svc
+          kubectl get ingress
