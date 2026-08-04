@@ -23,11 +23,7 @@ jobs:
       # ----------------------------------------------------
 
       - name: Checkout Repository
-  uses: actions/checkout@v4
-  with:
-    persist-credentials: true
-    fetch-depth: 0
-        
+        uses: actions/checkout@v4
 
       # ----------------------------------------------------
       # Configure AWS Credentials
@@ -120,21 +116,6 @@ jobs:
       - name: Update Frontend Manifest
         run: |
           sed -i "s|\${FRONTEND_IMAGE}|$FRONTEND_IMAGE|g" kubernetes/frontend-deployment.yaml
-            # ----------------------------------------------------
-      # Commit Updated Manifests
-      # ----------------------------------------------------
-
-      - name: Commit Updated Manifests
-        run: |
-          git config --global user.name "github-actions"
-          git config --global user.email "github-actions@github.com"
-
-          git add kubernetes/backend-deployment.yaml
-          git add kubernetes/frontend-deployment.yaml
-
-          git diff --cached --quiet || git commit -m "Update Kubernetes manifests"
-
-          git push
 
       # ----------------------------------------------------
       # Create / Update Kubernetes Secret
