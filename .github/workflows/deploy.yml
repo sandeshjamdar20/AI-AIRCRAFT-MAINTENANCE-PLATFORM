@@ -10,15 +10,11 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      
       AWS_REGION: ${{ secrets.AWS_REGION }}
-      EKS_CLUSTER_NAME: ${{ secrets.EKS_CLUSTER_NAME }}
-
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       BACKEND_IMAGE: ${{ secrets.BACKEND_IMAGE }}
       FRONTEND_IMAGE: ${{ secrets.FRONTEND_IMAGE }}
-      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-
-      
+      EKS_CLUSTER_NAME: ${{ secrets.EKS_CLUSTER_NAME }}
 
     steps:
 
@@ -61,7 +57,7 @@ jobs:
 
       - name: Tag Backend Image
         run: |
-          docker tag maintenance-backend:latest $BACKEND_REPO:$IMAGE_TAG
+          docker tag maintenance-backend:latest $BACKEND_IMAGE
 
       # ----------------------------------------------------
       # Push Backend Image
@@ -69,7 +65,7 @@ jobs:
 
       - name: Push Backend Image
         run: |
-          docker push $BACKEND_REPO:$IMAGE_TAG
+          docker push $BACKEND_IMAGE
 
       # ----------------------------------------------------
       # Build Frontend Image
@@ -85,7 +81,7 @@ jobs:
 
       - name: Tag Frontend Image
         run: |
-          docker tag maintenance-frontend:latest $FRONTEND_REPO:$IMAGE_TAG
+          docker tag maintenance-frontend:latest $FRONTEND_IMAGE
 
       # ----------------------------------------------------
       # Push Frontend Image
@@ -93,7 +89,7 @@ jobs:
 
       - name: Push Frontend Image
         run: |
-          docker push $FRONTEND_REPO:$IMAGE_TAG
+          docker push $FRONTEND_IMAGE
 
       # ----------------------------------------------------
       # Configure kubectl
@@ -111,7 +107,7 @@ jobs:
 
       - name: Update Backend Manifest
         run: |
-          sed -i "s|\${BACKEND_IMAGE}|$BACKEND_REPO:$IMAGE_TAG|g" kubernetes/backend-deployment.yaml
+          sed -i "s|\${BACKEND_IMAGE}|$BACKEND_IMAGE|g" kubernetes/backend-deployment.yaml
 
       # ----------------------------------------------------
       # Update Frontend Manifest
@@ -119,10 +115,10 @@ jobs:
 
       - name: Update Frontend Manifest
         run: |
-          sed -i "s|\${FRONTEND_IMAGE}|$FRONTEND_REPO:$IMAGE_TAG|g" kubernetes/frontend-deployment.yaml
+          sed -i "s|\${FRONTEND_IMAGE}|$FRONTEND_IMAGE|g" kubernetes/frontend-deployment.yaml
 
       # ----------------------------------------------------
-      # Create / Update AWS Secret
+      # Create / Update Kubernetes Secret
       # ----------------------------------------------------
 
       - name: Create AWS Credentials Secret
@@ -137,12 +133,12 @@ jobs:
       # Deploy to Amazon EKS
       # ----------------------------------------------------
 
-      - name: Deploy
+      - name: Deploy to Amazon EKS
         run: |
           kubectl apply -f kubernetes/
 
       # ----------------------------------------------------
-      # Restart Deployments (Recommended)
+      # Restart Deployments
       # ----------------------------------------------------
 
       - name: Restart Deployments
@@ -163,10 +159,10 @@ jobs:
           kubectl rollout status deployment/maintenance-frontend
 
       # ----------------------------------------------------
-      # Verify
+      # Verify Deployment
       # ----------------------------------------------------
 
-      - name: Verify
+      - name: Verify Deployment
         run: |
           kubectl get deployments
           kubectl get pods
